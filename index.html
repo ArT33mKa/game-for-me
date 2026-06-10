@@ -1215,7 +1215,7 @@ function drawWorld() {
   for (let gy = startY; gy < -CAM.y + canvas.height + cellSize; gy += cellSize) {
     for (let gx = startX; gx < -CAM.x + canvas.width + cellSize; gx += cellSize) {
       const even = ((Math.floor(gx / cellSize) + Math.floor(gy / cellSize)) % 2 === 0);
-      ctx.fillStyle = even ? "#3a4a2a" : "#344422";
+      ctx.fillStyle = even ? "#C5FC66" : "#4F5C37";
       ctx.fillRect(gx + CAM.x, gy + CAM.y, cellSize, cellSize);
     }
   }
