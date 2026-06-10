@@ -1,0 +1,1810 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tank Blitz – World of Tanks Clone</title>
+<style>
+  /* ─── RESET & ROOT ─────────────────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --steel:    #2a2e35;
+    --armor:    #3d4450;
+    --khaki:    #556b2f;
+    --sand:     #c8a96e;
+    --rust:     #b04030;
+    --shell:    #f0c040;
+    --green-hud:#39ff14;
+    --red-hud:  #ff3c38;
+    --ui-bg:    rgba(20,24,30,0.88);
+    --ui-border:#4a5260;
+    --font-hud: 'Courier New', monospace;
+  }
+
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: var(--steel);
+    font-family: var(--font-hud);
+    user-select: none;
+  }
+
+  /* ─── SCREENS ──────────────────────────────────────────────────────────── */
+  .screen {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    z-index: 10;
+  }
+  .screen.hidden { display: none; }
+
+  /* ─── MENU SCREEN ──────────────────────────────────────────────────────── */
+  #menuScreen {
+    background: radial-gradient(ellipse at 50% 40%, #1e2830 0%, #0a0c10 100%);
+  }
+  .menu-title {
+    font-size: clamp(2rem, 6vw, 4.5rem);
+    font-weight: 900;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--shell);
+    text-shadow: 0 0 40px rgba(240,192,64,0.5), 2px 4px 0 #5a3a00;
+    margin-bottom: 0.25em;
+  }
+  .menu-sub {
+    color: var(--sand);
+    font-size: 1rem;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    margin-bottom: 3em;
+  }
+  .menu-btn {
+    display: block; width: 260px; padding: 14px 0;
+    margin: 10px auto;
+    background: linear-gradient(135deg, #3d4a1e, #556b2f);
+    border: 2px solid var(--sand);
+    color: var(--shell);
+    font-family: var(--font-hud);
+    font-size: 1.1rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+    clip-path: polygon(8px 0%, 100% 0%, calc(100% - 8px) 100%, 0% 100%);
+  }
+  .menu-btn:hover {
+    background: linear-gradient(135deg, #556b2f, #7a9a44);
+    transform: scaleX(1.04);
+  }
+  .tank-deco {
+    position: absolute; bottom: 30px;
+    font-size: 3.5rem; opacity: 0.15;
+    letter-spacing: 0.5em;
+  }
+  .controls-hint {
+    margin-top: 2.5em;
+    color: #6a7a8a;
+    font-size: 0.78rem;
+    line-height: 1.9;
+    text-align: center;
+    border: 1px solid #2a3040;
+    padding: 14px 28px;
+  }
+  .controls-hint span { color: var(--sand); }
+
+  /* ─── GAME OVER / WIN SCREEN ───────────────────────────────────────────── */
+  #endScreen {
+    background: rgba(10,12,16,0.92);
+  }
+  .end-title {
+    font-size: clamp(2rem, 7vw, 5rem);
+    font-weight: 900;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 0.3em;
+  }
+  .end-title.defeat { color: var(--red-hud); text-shadow: 0 0 30px rgba(255,60,56,0.6); }
+  .end-title.victory { color: var(--shell); text-shadow: 0 0 30px rgba(240,192,64,0.6); }
+  .end-stats {
+    color: var(--sand); font-size: 1.1rem;
+    line-height: 2.2; text-align: center;
+    margin-bottom: 2em;
+  }
+  .end-stats strong { color: #fff; }
+
+  /* ─── CANVAS ───────────────────────────────────────────────────────────── */
+  #gameCanvas {
+    display: block;
+    position: absolute; inset: 0;
+  }
+
+  /* ─── HUD ──────────────────────────────────────────────────────────────── */
+  #hud {
+    position: absolute; inset: 0;
+    pointer-events: none;
+    z-index: 5;
+  }
+  #hud.hidden { display: none; }
+
+  /* Top bar */
+  #topBar {
+    position: absolute; top: 0; left: 0; right: 0;
+    height: 52px;
+    background: var(--ui-bg);
+    border-bottom: 1px solid var(--ui-border);
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 20px;
+  }
+  .hud-block { display: flex; flex-direction: column; align-items: center; }
+  .hud-label { font-size: 0.6rem; letter-spacing: 0.2em; color: #6a7a8a; text-transform: uppercase; }
+  .hud-value { font-size: 1.25rem; font-weight: 700; color: var(--green-hud); letter-spacing: 0.05em; }
+  .hud-value.red { color: var(--red-hud); }
+  .hud-value.gold { color: var(--shell); }
+
+  /* Health bar */
+  #healthBar {
+    position: absolute; bottom: 22px; left: 20px;
+    width: 220px;
+    background: var(--ui-bg);
+    border: 1px solid var(--ui-border);
+    padding: 8px 12px;
+  }
+  .bar-label { font-size: 0.6rem; letter-spacing: 0.2em; color: #6a7a8a; margin-bottom: 4px; }
+  .bar-track {
+    width: 100%; height: 10px;
+    background: #1a1e24;
+    border: 1px solid #3a4050;
+    position: relative;
+    overflow: hidden;
+  }
+  .bar-fill {
+    height: 100%;
+    transition: width 0.2s ease, background 0.4s ease;
+  }
+  #hpFill { background: var(--green-hud); width: 100%; }
+
+  /* Ammo panel */
+  #ammoPanel {
+    position: absolute; bottom: 22px; right: 20px;
+    background: var(--ui-bg);
+    border: 1px solid var(--ui-border);
+    padding: 8px 14px;
+    text-align: right;
+  }
+  .ammo-label { font-size: 0.6rem; letter-spacing: 0.2em; color: #6a7a8a; }
+  .ammo-value { font-size: 1.6rem; font-weight: 700; color: var(--shell); }
+  #reloadBar {
+    width: 100%; height: 4px;
+    background: #1a1e24;
+    border: 1px solid #3a4050;
+    margin-top: 4px;
+    overflow: hidden;
+  }
+  #reloadFill {
+    height: 100%; width: 0%;
+    background: var(--shell);
+    transition: width 0.05s linear;
+  }
+
+  /* Crosshair */
+  #crosshair {
+    position: absolute;
+    width: 32px; height: 32px;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+  #crosshair line { stroke: rgba(240,192,64,0.8); stroke-width: 1.5; }
+  #crosshair circle { fill: none; stroke: rgba(240,192,64,0.8); stroke-width: 1.5; }
+
+  /* Minimap */
+  #minimap {
+    position: absolute; top: 62px; right: 20px;
+    width: 140px; height: 140px;
+    background: rgba(10,14,20,0.85);
+    border: 1px solid var(--ui-border);
+  }
+  #minimapCanvas { display: block; }
+
+  /* Wave announcement */
+  #waveAnnounce {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: clamp(1.5rem, 5vw, 3rem);
+    font-weight: 900;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--shell);
+    text-shadow: 0 0 30px rgba(240,192,64,0.7);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.4s;
+  }
+  #waveAnnounce.show { opacity: 1; }
+
+  /* Kill feed */
+  #killFeed {
+    position: absolute; top: 62px; left: 20px;
+    width: 220px;
+  }
+  .kill-entry {
+    font-size: 0.75rem;
+    color: var(--red-hud);
+    background: var(--ui-bg);
+    padding: 3px 8px;
+    margin-bottom: 3px;
+    border-left: 2px solid var(--red-hud);
+    animation: fadeKill 3s forwards;
+  }
+  @keyframes fadeKill {
+    0%   { opacity: 1; }
+    70%  { opacity: 1; }
+    100% { opacity: 0; }
+  }
+
+  /* Pause overlay */
+  #pauseOverlay {
+    position: absolute; inset: 0;
+    background: rgba(0,0,0,0.6);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 8;
+  }
+  #pauseOverlay.hidden { display: none; }
+  .pause-text {
+    font-size: 3rem; font-weight: 900;
+    letter-spacing: 0.3em; text-transform: uppercase;
+    color: var(--sand);
+    text-shadow: 0 0 20px rgba(200,169,110,0.5);
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════ MENU SCREEN ════════════════════════════════ -->
+<div id="menuScreen" class="screen">
+  <div class="menu-title">⚙ Tank Blitz</div>
+  <div class="menu-sub">Survive the Armored Assault</div>
+  <button class="menu-btn" id="btnEasy">Easy – Recruit</button>
+  <button class="menu-btn" id="btnNormal">Normal – Sergeant</button>
+  <button class="menu-btn" id="btnHard">Hard – Commander</button>
+  <div class="controls-hint">
+    <span>WASD / ↑↓←→</span> — Move tank &nbsp;|&nbsp;
+    <span>Mouse</span> — Aim turret<br>
+    <span>Left Click / Space</span> — Fire &nbsp;|&nbsp;
+    <span>P / Esc</span> — Pause<br>
+    <span>R</span> — Reload manually &nbsp;|&nbsp;
+    <span>Shift</span> — Boost speed
+  </div>
+  <div class="tank-deco">🪖 🎖 🪖</div>
+</div>
+
+<!-- ═══════════════════════════ GAME OVER SCREEN ══════════════════════════ -->
+<div id="endScreen" class="screen hidden">
+  <div class="end-title" id="endTitle">DEFEAT</div>
+  <div class="end-stats" id="endStats"></div>
+  <button class="menu-btn" id="btnRestart">Play Again</button>
+  <button class="menu-btn" id="btnMenu">Main Menu</button>
+</div>
+
+<!-- ═══════════════════════════ CANVAS ════════════════════════════════════ -->
+<canvas id="gameCanvas"></canvas>
+
+<!-- ═══════════════════════════ HUD ═══════════════════════════════════════ -->
+<div id="hud" class="hidden">
+  <!-- Top bar -->
+  <div id="topBar">
+    <div class="hud-block">
+      <div class="hud-label">Score</div>
+      <div class="hud-value gold" id="scoreVal">0</div>
+    </div>
+    <div class="hud-block">
+      <div class="hud-label">Wave</div>
+      <div class="hud-value" id="waveVal">1</div>
+    </div>
+    <div class="hud-block">
+      <div class="hud-label">Enemies</div>
+      <div class="hud-value red" id="enemyVal">0</div>
+    </div>
+    <div class="hud-block">
+      <div class="hud-label">Kills</div>
+      <div class="hud-value" id="killsVal">0</div>
+    </div>
+    <div class="hud-block">
+      <div class="hud-label">Time</div>
+      <div class="hud-value" id="timeVal">0:00</div>
+    </div>
+  </div>
+
+  <!-- Health -->
+  <div id="healthBar">
+    <div class="bar-label">ARMOR / HP</div>
+    <div class="bar-track"><div class="bar-fill" id="hpFill"></div></div>
+  </div>
+
+  <!-- Ammo -->
+  <div id="ammoPanel">
+    <div class="ammo-label">SHELLS</div>
+    <div class="ammo-value" id="ammoVal">∞</div>
+    <div id="reloadBar"><div id="reloadFill"></div></div>
+  </div>
+
+  <!-- Kill feed -->
+  <div id="killFeed"></div>
+
+  <!-- Minimap -->
+  <div id="minimap">
+    <canvas id="minimapCanvas" width="140" height="140"></canvas>
+  </div>
+
+  <!-- Wave announce -->
+  <div id="waveAnnounce" id="waveAnnounce"></div>
+
+  <!-- Crosshair (moved by JS) -->
+  <svg id="crosshair" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+    <line x1="16" y1="0"  x2="16" y2="12"/>
+    <line x1="16" y1="20" x2="16" y2="32"/>
+    <line x1="0"  y1="16" x2="12" y2="16"/>
+    <line x1="20" y1="16" x2="32" y2="16"/>
+    <circle cx="16" cy="16" r="5"/>
+  </svg>
+</div>
+
+<!-- Pause overlay -->
+<div id="pauseOverlay" class="hidden">
+  <div class="pause-text">⏸ Paused</div>
+</div>
+
+<!-- ═══════════════════════════ JAVASCRIPT ════════════════════════════════ -->
+<script>
+"use strict";
+
+/* ╔══════════════════════════════════════════════════════════════════════════╗
+   ║  1. CONSTANTS & CONFIG                                                   ║
+   ╚══════════════════════════════════════════════════════════════════════════╝ */
+
+const CFG = {
+  WORLD_W: 2400,
+  WORLD_H: 2400,
+  CELL:     80,          // grid cell size for obstacles
+  FPS:      60,
+  // Tank sizes
+  PLAYER_W: 44, PLAYER_H: 60,
+  ENEMY_W:  40, ENEMY_H:  56,
+  // Speeds
+  PLAYER_SPEED:  200,
+  BOOST_MULT:    1.65,
+  // Combat
+  SHELL_SPEED:   520,
+  RELOAD_TIME:   1.4,    // seconds
+  PLAYER_HP:     100,
+  SHELL_DAMAGE_PLAYER: 18,
+  // Enemy config per tier
+  ENEMY_TIERS: [
+    { name:"Scout",   hp:30,  speed:130, fireRate:2.5, damage:12, color:"#8a2020", score:100 },
+    { name:"Raider",  hp:55,  speed:100, fireRate:3.5, damage:18, color:"#8a5520", score:200 },
+    { name:"Hunter",  hp:90,  speed:80,  fireRate:4.5, damage:25, color:"#4a4a8a", score:350 },
+    { name:"Titan",   hp:180, speed:55,  fireRate:6.0, damage:35, color:"#2a2a50", score:600 },
+  ],
+  // Waves: array of {tier, count} per wave
+  WAVES: [
+    [{ tier:0, count:4 }],
+    [{ tier:0, count:5 }, { tier:1, count:2 }],
+    [{ tier:0, count:4 }, { tier:1, count:3 }, { tier:2, count:1 }],
+    [{ tier:1, count:5 }, { tier:2, count:3 }],
+    [{ tier:1, count:4 }, { tier:2, count:4 }, { tier:3, count:1 }],
+    [{ tier:2, count:6 }, { tier:3, count:2 }],
+    [{ tier:2, count:5 }, { tier:3, count:4 }],
+    [{ tier:3, count:8 }],
+  ],
+  DIFFICULTIES: {
+    easy:   { speedMult:0.75, damageMult:0.6,  hpMult:0.8,  scoreBonus:1.0 },
+    normal: { speedMult:1.00, damageMult:1.0,  hpMult:1.0,  scoreBonus:1.5 },
+    hard:   { speedMult:1.30, damageMult:1.4,  hpMult:1.4,  scoreBonus:2.5 },
+  },
+};
+
+/* ╔══════════════════════════════════════════════════════════════════════════╗
+   ║  2. UTILITIES                                                            ║
+   ╚══════════════════════════════════════════════════════════════════════════╝ */
+
+/**
+ * lerp – Linear interpolation between a and b by t.
+ * Called everywhere smooth transitions are needed.
+ * @param {number} a  Start value
+ * @param {number} b  End value
+ * @param {number} t  Factor [0..1]
+ * @returns {number}
+ */
+function lerp(a, b, t) { return a + (b - a) * t; }
+
+/**
+ * clamp – Constrains value v between lo and hi.
+ * @param {number} v
+ * @param {number} lo
+ * @param {number} hi
+ * @returns {number}
+ */
+function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
+
+/**
+ * dist2 – Squared Euclidean distance between two points.
+ * Used in collision checks to avoid sqrt cost.
+ * @param {number} ax @param {number} ay @param {number} bx @param {number} by
+ * @returns {number}
+ */
+function dist2(ax, ay, bx, by) {
+  const dx = ax - bx, dy = ay - by;
+  return dx * dx + dy * dy;
+}
+
+/**
+ * dist – Euclidean distance between two points.
+ * @returns {number}
+ */
+function dist(ax, ay, bx, by) { return Math.sqrt(dist2(ax, ay, bx, by)); }
+
+/**
+ * angle – Angle in radians from point (ax,ay) toward (bx,by).
+ * @returns {number}
+ */
+function angle(ax, ay, bx, by) { return Math.atan2(by - ay, bx - ax); }
+
+/**
+ * randomInt – Returns a random integer in [lo, hi].
+ * @param {number} lo @param {number} hi
+ * @returns {number}
+ */
+function randomInt(lo, hi) { return Math.floor(Math.random() * (hi - lo + 1)) + lo; }
+
+/**
+ * randomFloat – Returns a random float in [lo, hi].
+ * @returns {number}
+ */
+function randomFloat(lo, hi) { return Math.random() * (hi - lo) + lo; }
+
+/**
+ * rectOverlap – AABB collision check.
+ * Returns true when two axis-aligned rectangles overlap.
+ * @param {{x,y,w,h}} a @param {{x,y,w,h}} b
+ * @returns {boolean}
+ */
+function rectOverlap(a, b) {
+  return a.x < b.x + b.w && a.x + a.w > b.x &&
+         a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
+/**
+ * circleRect – Circle vs AABB collision.
+ * Used for shell-obstacle and tank-obstacle collisions.
+ * @param {number} cx @param {number} cy @param {number} r
+ * @param {{x,y,w,h}} rect
+ * @returns {boolean}
+ */
+function circleRect(cx, cy, r, rect) {
+  const nearX = clamp(cx, rect.x, rect.x + rect.w);
+  const nearY = clamp(cy, rect.y, rect.y + rect.h);
+  return dist2(cx, cy, nearX, nearY) <= r * r;
+}
+
+/**
+ * lerpAngle – Smoothly interpolates between two angles,
+ * handling wrap-around correctly.
+ * Used for enemy turret rotation.
+ * @param {number} a Current angle (radians)
+ * @param {number} b Target angle (radians)
+ * @param {number} t Factor [0..1]
+ * @returns {number}
+ */
+function lerpAngle(a, b, t) {
+  let diff = ((b - a + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+  return a + diff * t;
+}
+
+/* ╔══════════════════════════════════════════════════════════════════════════╗
+   ║  3. GAME STATE                                                           ║
+   ╚══════════════════════════════════════════════════════════════════════════╝ */
+
+const STATE = {
+  running: false,
+  paused:  false,
+  wave:    1,
+  score:   0,
+  kills:   0,
+  elapsed: 0,       // seconds since game start
+  difficulty: "normal",
+  diffCfg: null,
+  spawnQueue: [],   // enemies yet to spawn this wave
+  spawnTimer: 0,
+  waveComplete: false,
+  waveDelay: 0,
+  waveAnnounceTimer: 0,
+};
+
+/* Camera / viewport */
+const CAM = { x: 0, y: 0 };
+
+/* Input state */
+const INPUT = {
+  keys: {},
+  mouseX: 0, mouseY: 0,   // canvas coords
+  worldX: 0, worldY: 0,   // world coords
+  fire: false,
+  fireEdge: false,         // true for one frame when button first pressed
+};
+
+/* ╔══════════════════════════════════════════════════════════════════════════╗
+   ║  4. CANVAS SETUP                                                         ║
+   ╚══════════════════════════════════════════════════════════════════════════╝ */
+
+const canvas   = document.getElementById("gameCanvas");
+const ctx      = canvas.getContext("2d");
+const mmCanvas = document.getElementById("minimapCanvas");
+const mmCtx    = mmCanvas.getContext("2d");
+
+/**
+ * resizeCanvas – Fits the canvas to the window.
+ * Called on init and on window resize.
+ * Keeps pixel ratio crisp on HiDPI screens.
+ */
+function resizeCanvas() {
+  canvas.width  = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+resizeCanvas();
+window.addEventListener("resize", resizeCanvas);
+
+/* ╔══════════════════════════════════════════════════════════════════════════╗
+   ║  5. OBJECT POOLS / ARRAYS                                                ║
+   ╚══════════════════════════════════════════════════════════════════════════╝ */
+
+let player    = null;
+let enemies   = [];
+let pShells   = [];   // player shells
+let eShells   = [];   // enemy shells
+let obstacles = [];
+let particles = [];
+let pickups   = [];
+
+/* ╔══════════════════════════════════════════════════════════════════════════╗
+   ║  6. PLAYER FACTORY                                                       ║
+   ╚══════════════════════════════════════════════════════════════════════════╝ */
+
+/**
+ * createPlayer – Constructs the player tank object.
+ * Called once when a new game starts.
+ * @returns {object} Player tank object
+ */
+function createPlayer() {
+  return {
+    x: CFG.WORLD_W / 2,
+    y: CFG.WORLD_H / 2,
+    w: CFG.PLAYER_W,
+    h: CFG.PLAYER_H,
+    angle: -Math.PI / 2,    // hull direction (radians, facing up)
+    turretAngle: 0,         // absolute turret angle
+    hp: CFG.PLAYER_HP,
+    maxHp: CFG.PLAYER_HP,
+    speed: CFG.PLAYER_SPEED,
+    reloadTimer: 0,
+    reloadMax: CFG.RELOAD_TIME,
+    isReloading: false,
+    hitFlash: 0,            // frames to flash red on hit
+    trail: [],              // tread marks
+  };
+}
+
+/* ╔══════════════════════════════════════════════════════════════════════════╗
+   ║  7. ENEMY FACTORY                                                        ║
+   ╚══════════════════════════════════════════════════════════════════════════╝ */
+
+/**
+ * createEnemy – Constructs an enemy tank object at a random spawn point
+ * outside the player's view, using the given tier config.
+ * Called by the wave spawner each time an enemy is deployed.
+ * @param {number} tier  Index into CFG.ENEMY_TIERS
+ * @returns {object} Enemy tank object
+ */
+function createEnemy(tier) {
+  const tcfg = CFG.ENEMY_TIERS[tier];
+  const d    = STATE.diffCfg;
+
+  // Pick spawn edge (0=top 1=right 2=bottom 3=left)
+  const edge = randomInt(0, 3);
+  let sx, sy;
+  const margin = 60;
+  if      (edge === 0) { sx = randomFloat(margin, CFG.WORLD_W - margin); sy = margin; }
+  else if (edge === 1) { sx = CFG.WORLD_W - margin; sy = randomFloat(margin, CFG.WORLD_H - margin); }
+  else if (edge === 2) { sx = randomFloat(margin, CFG.WORLD_W - margin); sy = CFG.WORLD_H - margin; }
+  else                 { sx = margin; sy = randomFloat(margin, CFG.WORLD_H - margin); }
+
+  return {
+    x: sx, y: sy,
+    w: CFG.ENEMY_W, h: CFG.ENEMY_H,
+    angle: angle(sx, sy, player.x, player.y),
+    turretAngle: 0,
+    hp:    tcfg.hp    * d.hpMult,
+    maxHp: tcfg.hp    * d.hpMult,
+    speed: tcfg.speed * d.speedMult,
+    damage:    tcfg.damage * d.damageMult,
+    fireRate:  tcfg.fireRate,
+    fireTimer: randomFloat(0, tcfg.fireRate),
+    tier,
+    name: tcfg.name,
+    color: tcfg.color,
+    scoreVal: tcfg.score,
+    state: "chase",     // AI state: chase | strafe | retreat
+    stateTimer: 0,
+    hitFlash: 0,
+    trail: [],
+  };
+}
+
+/* ╔══════════════════════════════════════════════════════════════════════════╗
+   ║  8. SHELL FACTORY                                                        ║
+   ╚══════════════════════════════════════════════════════════════════════════╝ */
+
+/**
+ * createShell – Spawns a projectile shell from a tank.
+ * Called when player fires or when enemy fires.
+ * @param {number}  x         Origin X in world space
+ * @param {number}  y         Origin Y in world space
+ * @param {number}  ang       Direction angle (radians)
+ * @param {number}  speed     Pixels per second
+ * @param {number}  damage    HP removed on hit
+ * @param {boolean} fromPlayer True if owned by the player
+ * @returns {object} Shell object
+ */
+function createShell(x, y, ang, speed, damage, fromPlayer) {
+  return {
+    x, y,
+    vx: Math.cos(ang) * speed,
+    vy: Math.sin(ang) * speed,
+    r: 5,
+    damage,
+    fromPlayer,
+    alive: true,
+    trail: [],
+  };
+}
+
+/* ╔══════════════════════════════════════════════════════════════════════════╗
+   ║  9. PARTICLE FACTORY                                                     ║
+   ╚══════════════════════════════════════════════════════════════════════════╝ */
+
+/**
+ * spawnExplosion – Creates a burst of particle effects at (x, y).
+ * Called whenever a tank is destroyed or a shell hits an obstacle.
+ * @param {number} x
+ * @param {number} y
+ * @param {string} color  Base color for sparks
+ * @param {number} count  Number of particles
+ */
+function spawnExplosion(x, y, color, count) {
+  for (let i = 0; i < count; i++) {
+    const spd = randomFloat(60, 240);
+    const ang = randomFloat(0, Math.PI * 2);
+    particles.push({
+      x, y,
+      vx: Math.cos(ang) * spd,
+      vy: Math.sin(ang) * spd,
+      r: randomFloat(3, 9),
+      color,
+      alpha: 1,
+      life: randomFloat(0.3, 1.0),
+      maxLife: 0,
+    });
+    particles[particles.length - 1].maxLife = particles[particles.length - 1].life;
+  }
+}
+
+/**
+ * spawnSmoke – Creates a smoke puff particle.
+ * Called when a tank takes heavy damage (hp < 30%).
+ * @param {number} x @param {number} y
+ */
+function spawnSmoke(x, y) {
+  particles.push({
+    x: x + randomFloat(-8, 8),
+    y: y + randomFloat(-8, 8),
+    vx: randomFloat(-20, 20),
+    vy: randomFloat(-60, -20),
+    r: randomFloat(8, 18),
+    color: "#888",
+    alpha: 0.55,
+    life: randomFloat(0.8, 1.8),
+    maxLife: 0,
+  });
+  particles[particles.length - 1].maxLife = particles[particles.length - 1].life;
+}
+
+/* ╔══════════════════════════════════════════════════════════════════════════╗
+   ║  10. OBSTACLE GENERATION                                                 ║
+   ╚══════════════════════════════════════════════════════════════════════════╝ */
+
+/**
+ * generateObstacles – Procedurally fills the world with walls, rocks, and
+ * ruins.  Ensures a clear zone around the player's starting position.
+ * Called once at game start.
+ */
+function generateObstacles() {
+  obstacles = [];
+  const safe = 250;   // clear radius around map center (player spawn)
+  const cx   = CFG.WORLD_W / 2;
+  const cy   = CFG.WORLD_H / 2;
+
+  // Border walls
+  const T = 30;
+  obstacles.push(
+    { x: 0,                  y: 0,                  w: CFG.WORLD_W, h: T,  type:"wall" },
+    { x: 0,                  y: CFG.WORLD_H - T,    w: CFG.WORLD_W, h: T,  type:"wall" },
+    { x: 0,                  y: 0,                  w: T,           h: CFG.WORLD_H, type:"wall" },
+    { x: CFG.WORLD_W - T,    y: 0,                  w: T,           h: CFG.WORLD_H, type:"wall" },
+  );
+
+  // Random ruin clusters
+  const count = 80;
+  let attempts = 0;
+  while (obstacles.length < count + 4 && attempts < 3000) {
+    attempts++;
+    const ox = randomFloat(60, CFG.WORLD_W - 60);
+    const oy = randomFloat(60, CFG.WORLD_H - 60);
+    if (dist(ox, oy, cx, cy) < safe) continue;
+
+    const type = Math.random() < 0.5 ? "rock" : "ruin";
+    const w = randomInt(40, 120);
+    const h = randomInt(40, 120);
+    const cand = { x: ox - w/2, y: oy - h/2, w, h, type };
+
+    // No overlap check with existing
+    let overlap = false;
+    for (const o of obstacles) {
+      if (rectOverlap({ x: cand.x - 20, y: cand.y - 20, w: cand.w + 40, h: cand.h + 40 }, o)) {
+        overlap = true; break;
+      }
+    }
+    if (!overlap) obstacles.push(cand);
+  }
+}
+
+/* ╔══════════════════════════════════════════════════════════════════════════╗
+   ║  11. WAVE SYSTEM                                                         ║
+   ╚══════════════════════════════════════════════════════════════════════════╝ */
+
+/**
+ * startWave – Initialises a new wave by building the spawn queue.
+ * Loops through WAVES config; after the last defined wave, scales
+ * the hardest config endlessly.
+ * Called at game start and after each wave is cleared.
+ * @param {number} waveNumber  1-based wave index
+ */
+function startWave(waveNumber) {
+  STATE.wave = waveNumber;
+  STATE.waveComplete = false;
+
+  const waveIndex = Math.min(waveNumber - 1, CFG.WAVES.length - 1);
+  const waveDef   = CFG.WAVES[waveIndex];
+
+  // For waves beyond defined list, scale count
+  const extraMult = waveNumber > CFG.WAVES.length
+    ? 1 + (waveNumber - CFG.WAVES.length) * 0.4
+    : 1;
+
+  STATE.spawnQueue = [];
+  for (const group of waveDef) {
+    const n = Math.ceil(group.count * extraMult);
+    for (let i = 0; i < n; i++) {
+      STATE.spawnQueue.push(group.tier);
+    }
+  }
+  // Shuffle the queue so tiers intermix
+  STATE.spawnQueue.sort(() => Math.random() - 0.5);
+  STATE.spawnTimer = 1.5;  // 1.5s before first spawn
+
+  updateWaveHUD();
+  showWaveAnnounce(waveNumber);
+}
+
+/**
+ * updateWaveSystem – Called every frame.
+ * Handles:
+ *  - Timed spawning of enemies from the queue.
+ *  - Detection that all enemies are dead (wave complete).
+ *  - Inter-wave delay countdown.
+ * @param {number} dt  Delta time in seconds
+ */
+function updateWaveSystem(dt) {
+  if (STATE.paused || !STATE.running) return;
+
+  // Spawn from queue
+  if (STATE.spawnQueue.length > 0) {
+    STATE.spawnTimer -= dt;
+    if (STATE.spawnTimer <= 0) {
+      const tier = STATE.spawnQueue.shift();
+      enemies.push(createEnemy(tier));
+      STATE.spawnTimer = randomFloat(0.8, 2.2);
+      updateEnemyCountHUD();
+    }
+  }
+
+  // Check wave complete
+  if (!STATE.waveComplete && STATE.spawnQueue.length === 0 && enemies.length === 0) {
+    STATE.waveComplete = true;
+    STATE.waveDelay    = 4.0;
+  }
+
+  // Inter-wave countdown
+  if (STATE.waveComplete) {
+    STATE.waveDelay -= dt;
+    if (STATE.waveDelay <= 0) {
+      startWave(STATE.wave + 1);
+    }
+  }
+}
+
+/* ╔══════════════════════════════════════════════════════════════════════════╗
+   ║  12. PLAYER UPDATE                                                       ║
+   ╚══════════════════════════════════════════════════════════════════════════╝ */
+
+/**
+ * updatePlayer – Updates player movement, turret aim, shooting, and reload.
+ * Called every frame while the game is running and not paused.
+ * @param {number} dt  Delta time in seconds
+ */
+function updatePlayer(dt) {
+  if (!player || !STATE.running || STATE.paused) return;
+
+  const spd = player.speed * (isKeyDown("ShiftLeft","ShiftRight") ? CFG.BOOST_MULT : 1);
+
+  // ── Hull rotation ─────────────────────────────────────────────────────────
+  let rotate = 0;
+  if (isKeyDown("KeyA","ArrowLeft"))  rotate = -2.2;
+  if (isKeyDown("KeyD","ArrowRight")) rotate =  2.2;
+  player.angle += rotate * dt;
+
+  // ── Forward / backward ───────────────────────────────────────────────────
+  let move = 0;
+  if (isKeyDown("KeyW","ArrowUp"))   move =  1;
+  if (isKeyDown("KeyS","ArrowDown")) move = -1;
+
+  const nx = player.x + Math.cos(player.angle) * spd * move * dt;
+  const ny = player.y + Math.sin(player.angle) * spd * move * dt;
+
+  // Tread trail
+  if (move !== 0 && Math.random() < 0.3) {
+    player.trail.push({ x: player.x, y: player.y, a: 1 });
+    if (player.trail.length > 60) player.trail.shift();
+  }
+
+  // Collision with obstacles
+  const pw = player.w, ph = player.h;
+  if (!collidesWithObstacles(nx - pw/2, player.y - ph/2, pw, ph)) player.x = nx;
+  if (!collidesWithObstacles(player.x - pw/2, ny - ph/2, pw, ph)) player.y = ny;
+
+  // World bounds
+  player.x = clamp(player.x, player.w/2 + 32, CFG.WORLD_W - player.w/2 - 32);
+  player.y = clamp(player.y, player.h/2 + 32, CFG.WORLD_H - player.h/2 - 32);
+
+  // ── Turret follows mouse ──────────────────────────────────────────────────
+  player.turretAngle = angle(player.x, player.y, INPUT.worldX, INPUT.worldY);
+
+  // ── Reload timer ─────────────────────────────────────────────────────────
+  if (player.isReloading) {
+    player.reloadTimer += dt;
+    const pct = player.reloadTimer / player.reloadMax;
+    document.getElementById("reloadFill").style.width = (pct * 100) + "%";
+    if (player.reloadTimer >= player.reloadMax) {
+      player.isReloading = false;
+      player.reloadTimer = 0;
+      document.getElementById("reloadFill").style.width = "0%";
+    }
+  }
+
+  // ── Manual reload (R key) ─────────────────────────────────────────────────
+  if (INPUT.keys["KeyR"] && !player.isReloading) {
+    player.isReloading = true;
+    player.reloadTimer = 0;
+  }
+
+  // ── Firing ────────────────────────────────────────────────────────────────
+  if ((INPUT.fireEdge || INPUT.keys["Space"]) && !player.isReloading) {
+    firePlayerShell();
+    player.isReloading = true;
+    player.reloadTimer = 0;
+  }
+  INPUT.fireEdge = false;
+
+  // ── Hit flash decay ───────────────────────────────────────────────────────
+  if (player.hitFlash > 0) player.hitFlash--;
+
+  // ── Smoke when low HP ─────────────────────────────────────────────────────
+  if (player.hp < player.maxHp * 0.3 && Math.random() < 0.08) {
+    spawnSmoke(player.x, player.y);
+  }
+
+  // ── Camera follows player ─────────────────────────────────────────────────
+  const tw = canvas.width  / 2 - player.x;
+  const th = canvas.height / 2 - player.y;
+  CAM.x = lerp(CAM.x, tw, 0.1);
+  CAM.y = lerp(CAM.y, th, 0.1);
+
+  // Clamp camera to world bounds
+  CAM.x = clamp(CAM.x, -(CFG.WORLD_W - canvas.width),  0);
+  CAM.y = clamp(CAM.y, -(CFG.WORLD_H - canvas.height), 0);
+
+  // Update HP bar
+  const hpPct = (player.hp / player.maxHp) * 100;
+  const fill  = document.getElementById("hpFill");
+  fill.style.width = hpPct + "%";
+  fill.style.background = hpPct > 50 ? "var(--green-hud)" : hpPct > 25 ? "orange" : "var(--red-hud)";
+}
+
+/**
+ * firePlayerShell – Creates a shell from the player's turret.
+ * Called by updatePlayer when fire input is detected and not reloading.
+ */
+function firePlayerShell() {
+  const offX = Math.cos(player.turretAngle) * 36;
+  const offY = Math.sin(player.turretAngle) * 36;
+  pShells.push(createShell(
+    player.x + offX, player.y + offY,
+    player.turretAngle,
+    CFG.SHELL_SPEED,
+    28,
+    true
+  ));
+}
+
+/* ╔══════════════════════════════════════════════════════════════════════════╗
+   ║  13. ENEMY AI                                                            ║
+   ╚══════════════════════════════════════════════════════════════════════════╝ */
+
+/**
+ * updateEnemy – Runs one enemy's AI: state machine, movement, and firing.
+ * Called for each living enemy every frame.
+ * @param {object} enemy  Enemy tank object
+ * @param {number} dt     Delta time in seconds
+ */
+function updateEnemy(enemy, dt) {
+  if (!player) return;
+
+  const dx   = player.x - enemy.x;
+  const dy   = player.y - enemy.y;
+  const dSq  = dx * dx + dy * dy;
+  const dLen = Math.sqrt(dSq);
+
+  // ── State transitions ────────────────────────────────────────────────────
+  enemy.stateTimer -= dt;
+  if (enemy.stateTimer <= 0) {
+    if (dLen < 320)       { enemy.state = "strafe";  enemy.stateTimer = randomFloat(1.2, 2.5); }
+    else if (dLen < 700)  { enemy.state = "chase";   enemy.stateTimer = randomFloat(2.0, 4.0); }
+    else                  { enemy.state = "chase";   enemy.stateTimer = 3.0; }
+  }
+
+  // ── Movement ─────────────────────────────────────────────────────────────
+  let targetAngle = Math.atan2(dy, dx);
+  if (enemy.state === "strafe") {
+    targetAngle += Math.PI / 2;   // circle the player
+  }
+
+  enemy.angle = lerpAngle(enemy.angle, targetAngle, 0.04);
+  const spd = enemy.speed;
+
+  const nx = enemy.x + Math.cos(enemy.angle) * spd * dt;
+  const ny = enemy.y + Math.sin(enemy.angle) * spd * dt;
+
+  // Obstacle avoidance
+  if (!collidesWithObstacles(nx - enemy.w/2, enemy.y - enemy.h/2, enemy.w, enemy.h)) enemy.x = nx;
+  if (!collidesWithObstacles(enemy.x - enemy.w/2, ny - enemy.h/2, enemy.w, enemy.h)) enemy.y = ny;
+
+  enemy.x = clamp(enemy.x, enemy.w/2 + 32, CFG.WORLD_W - enemy.w/2 - 32);
+  enemy.y = clamp(enemy.y, enemy.h/2 + 32, CFG.WORLD_H - enemy.h/2 - 32);
+
+  // ── Tread trail ───────────────────────────────────────────────────────────
+  if (Math.random() < 0.15) {
+    enemy.trail.push({ x: enemy.x, y: enemy.y, a: 0.7 });
+    if (enemy.trail.length > 30) enemy.trail.shift();
+  }
+
+  // ── Turret tracking ───────────────────────────────────────────────────────
+  const tgtAngle = Math.atan2(dy, dx);
+  enemy.turretAngle = lerpAngle(enemy.turretAngle, tgtAngle, 0.05);
+
+  // ── Firing ────────────────────────────────────────────────────────────────
+  enemy.fireTimer -= dt;
+  const angleDiff = Math.abs(((enemy.turretAngle - tgtAngle) + Math.PI * 3) % (Math.PI * 2) - Math.PI);
+  if (enemy.fireTimer <= 0 && angleDiff < 0.25 && dLen < 800) {
+    const offX = Math.cos(enemy.turretAngle) * 32;
+    const offY = Math.sin(enemy.turretAngle) * 32;
+    eShells.push(createShell(
+      enemy.x + offX, enemy.y + offY,
+      enemy.turretAngle,
+      CFG.SHELL_SPEED * 0.82,
+      enemy.damage,
+      false
+    ));
+    enemy.fireTimer = enemy.fireRate;
+  }
+
+  // ── Hit flash decay ───────────────────────────────────────────────────────
+  if (enemy.hitFlash > 0) enemy.hitFlash--;
+
+  // ── Smoke when low ────────────────────────────────────────────────────────
+  if (enemy.hp < enemy.maxHp * 0.3 && Math.random() < 0.06) {
+    spawnSmoke(enemy.x, enemy.y);
+  }
+}
+
+/* ╔══════════════════════════════════════════════════════════════════════════╗
+   ║  14. SHELL & PARTICLE UPDATE                                             ║
+   ╚══════════════════════════════════════════════════════════════════════════╝ */
+
+/**
+ * updateShells – Moves all shells, checks obstacle and tank collisions,
+ * removes dead shells.
+ * Called every frame.
+ * @param {number} dt
+ */
+function updateShells(dt) {
+  // Player shells → hit enemies
+  for (const s of pShells) {
+    if (!s.alive) continue;
+    s.trail.push({ x: s.x, y: s.y });
+    if (s.trail.length > 8) s.trail.shift();
+    s.x += s.vx * dt;
+    s.y += s.vy * dt;
+
+    // Out of world
+    if (s.x < 0 || s.x > CFG.WORLD_W || s.y < 0 || s.y > CFG.WORLD_H) {
+      s.alive = false; continue;
+    }
+
+    // Obstacle hit
+    if (shellHitsObstacle(s)) {
+      spawnExplosion(s.x, s.y, "#d08040", 6);
+      s.alive = false; continue;
+    }
+
+    // Enemy hit
+    for (const e of enemies) {
+      if (circleRect(s.x, s.y, s.r, { x: e.x - e.w/2, y: e.y - e.h/2, w: e.w, h: e.h })) {
+        e.hp       -= s.damage;
+        e.hitFlash  = 6;
+        s.alive     = false;
+        spawnExplosion(s.x, s.y, "#ff8040", 12);
+        if (e.hp <= 0) killEnemy(e);
+        break;
+      }
+    }
+  }
+
+  // Enemy shells → hit player
+  for (const s of eShells) {
+    if (!s.alive) continue;
+    s.trail.push({ x: s.x, y: s.y });
+    if (s.trail.length > 6) s.trail.shift();
+    s.x += s.vx * dt;
+    s.y += s.vy * dt;
+
+    if (s.x < 0 || s.x > CFG.WORLD_W || s.y < 0 || s.y > CFG.WORLD_H) {
+      s.alive = false; continue;
+    }
+    if (shellHitsObstacle(s)) {
+      spawnExplosion(s.x, s.y, "#8060a0", 5);
+      s.alive = false; continue;
+    }
+    if (player && circleRect(s.x, s.y, s.r, {
+      x: player.x - player.w/2, y: player.y - player.h/2,
+      w: player.w, h: player.h
+    })) {
+      damagePlayer(s.damage);
+      spawnExplosion(s.x, s.y, "#ff4040", 14);
+      s.alive = false;
+    }
+  }
+
+  // Prune dead shells
+  pShells = pShells.filter(s => s.alive);
+  eShells = eShells.filter(s => s.alive);
+}
+
+/**
+ * updateParticles – Ages and removes expired particles.
+ * @param {number} dt
+ */
+function updateParticles(dt) {
+  for (const p of particles) {
+    p.life -= dt;
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.vy += 60 * dt;    // gravity
+    p.r  = Math.max(0, p.r - dt * 4);
+    p.alpha = Math.max(0, p.life / p.maxLife);
+  }
+  particles = particles.filter(p => p.life > 0);
+}
+
+/* ╔══════════════════════════════════════════════════════════════════════════╗
+   ║  15. COLLISION HELPERS                                                   ║
+   ╚══════════════════════════════════════════════════════════════════════════╝ */
+
+/**
+ * collidesWithObstacles – Checks whether a given AABB overlaps any obstacle.
+ * Used for tank movement to prevent passing through walls/rocks.
+ * @param {number} x @param {number} y @param {number} w @param {number} h
+ * @returns {boolean}
+ */
+function collidesWithObstacles(x, y, w, h) {
+  const r = { x, y, w, h };
+  for (const o of obstacles) {
+    if (rectOverlap(r, o)) return true;
+  }
+  return false;
+}
+
+/**
+ * shellHitsObstacle – Circle-vs-AABB check for a shell against obstacles.
+ * @param {object} s  Shell object
+ * @returns {boolean}
+ */
+function shellHitsObstacle(s) {
+  for (const o of obstacles) {
+    if (circleRect(s.x, s.y, s.r, o)) return true;
+  }
+  return false;
+}
+
+/* ╔══════════════════════════════════════════════════════════════════════════╗
+   ║  16. GAME LOGIC                                                          ║
+   ╚══════════════════════════════════════════════════════════════════════════╝ */
+
+/**
+ * killEnemy – Handles enemy death: scoring, explosion, kill feed entry,
+ * and HUD update.
+ * @param {object} enemy
+ */
+function killEnemy(enemy) {
+  enemy.hp = 0;  // ensure removed by filter
+  const pts = Math.round(enemy.scoreVal * STATE.diffCfg.scoreBonus);
+  STATE.score += pts;
+  STATE.kills++;
+  spawnExplosion(enemy.x, enemy.y, enemy.color, 28);
+  addKillFeedEntry(`${enemy.name} destroyed  +${pts}`);
+  updateScoreHUD();
+  updateKillsHUD();
+  updateEnemyCountHUD();
+}
+
+/**
+ * damagePlayer – Reduces player HP, triggers visual feedback,
+ * and checks for player death.
+ * @param {number} dmg  Damage amount
+ */
+function damagePlayer(dmg) {
+  if (!player) return;
+  player.hp      -= dmg;
+  player.hitFlash = 10;
+  if (player.hp <= 0) {
+    player.hp = 0;
+    endGame(false);
+  }
+}
+
+/**
+ * isKeyDown – Checks whether any of the provided key codes is pressed.
+ * Variadic: accepts multiple key code strings.
+ * @param {...string} codes  KeyboardEvent.code values
+ * @returns {boolean}
+ */
+function isKeyDown(...codes) {
+  return codes.some(c => INPUT.keys[c]);
+}
+
+/* ╔══════════════════════════════════════════════════════════════════════════╗
+   ║  17. RENDERING                                                           ║
+   ╚══════════════════════════════════════════════════════════════════════════╝ */
+
+/**
+ * drawWorld – Renders the ground terrain (checkerboard pattern for dirt/grass).
+ * Called first in the render pass so everything draws on top.
+ */
+function drawWorld() {
+  const cellSize = 120;
+  const startX = Math.floor(-CAM.x / cellSize) * cellSize;
+  const startY = Math.floor(-CAM.y / cellSize) * cellSize;
+
+  for (let gy = startY; gy < -CAM.y + canvas.height + cellSize; gy += cellSize) {
+    for (let gx = startX; gx < -CAM.x + canvas.width + cellSize; gx += cellSize) {
+      const even = ((Math.floor(gx / cellSize) + Math.floor(gy / cellSize)) % 2 === 0);
+      ctx.fillStyle = even ? "#3a4a2a" : "#344422";
+      ctx.fillRect(gx + CAM.x, gy + CAM.y, cellSize, cellSize);
+    }
+  }
+
+  // Grid lines (subtle)
+  ctx.strokeStyle = "rgba(0,0,0,0.12)";
+  ctx.lineWidth   = 1;
+  for (let gy = startY; gy < -CAM.y + canvas.height + cellSize; gy += cellSize) {
+    ctx.beginPath();
+    ctx.moveTo(CAM.x, gy + CAM.y);
+    ctx.lineTo(canvas.width + CAM.x, gy + CAM.y);
+    ctx.stroke();
+  }
+  for (let gx = startX; gx < -CAM.x + canvas.width + cellSize; gx += cellSize) {
+    ctx.beginPath();
+    ctx.moveTo(gx + CAM.x, CAM.y);
+    ctx.lineTo(gx + CAM.x, canvas.height + CAM.y);
+    ctx.stroke();
+  }
+}
+
+/**
+ * drawObstacles – Renders all walls, rocks, and ruins with lighting detail.
+ * Called after terrain, before tanks.
+ */
+function drawObstacles() {
+  for (const o of obstacles) {
+    const sx = o.x + CAM.x;
+    const sy = o.y + CAM.y;
+    // Skip off-screen
+    if (sx + o.w < 0 || sx > canvas.width || sy + o.h < 0 || sy > canvas.height) continue;
+
+    let fillA, fillB;
+    if      (o.type === "wall") { fillA = "#2a2e35"; fillB = "#1a1e25"; }
+    else if (o.type === "rock") { fillA = "#607060"; fillB = "#485548"; }
+    else                        { fillA = "#6a5a48"; fillB = "#5a4a38"; }
+
+    const grad = ctx.createLinearGradient(sx, sy, sx + o.w, sy + o.h);
+    grad.addColorStop(0, fillA);
+    grad.addColorStop(1, fillB);
+    ctx.fillStyle = grad;
+    ctx.fillRect(sx, sy, o.w, o.h);
+
+    // Border crack lines
+    ctx.strokeStyle = "rgba(0,0,0,0.4)";
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(sx, sy, o.w, o.h);
+
+    // Highlight edge
+    ctx.strokeStyle = "rgba(255,255,255,0.07)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(sx, sy + o.h); ctx.lineTo(sx, sy); ctx.lineTo(sx + o.w, sy);
+    ctx.stroke();
+  }
+}
+
+/**
+ * drawTrail – Renders tread mark trail for a tank.
+ * @param {object} tank  Any tank object with .trail array
+ */
+function drawTrail(tank) {
+  for (let i = 0; i < tank.trail.length; i++) {
+    const t = tank.trail[i];
+    const a = (i / tank.trail.length) * t.a * 0.4;
+    ctx.fillStyle = `rgba(0,0,0,${a})`;
+    ctx.fillRect(t.x + CAM.x - 4, t.y + CAM.y - 4, 8, 8);
+  }
+}
+
+/**
+ * drawTank – Renders a tank (hull + turret + barrel) with rotation,
+ * hit flash, and health bar.
+ * @param {object} tank    Tank object (player or enemy)
+ * @param {string} hullColor  Main hull fill color
+ * @param {string} turretColor  Turret fill color
+ * @param {boolean} isPlayer  True for the player tank
+ */
+function drawTank(tank, hullColor, turretColor, isPlayer) {
+  const sx = tank.x + CAM.x;
+  const sy = tank.y + CAM.y;
+
+  // Off-screen culling
+  const pad = 80;
+  if (sx < -pad || sx > canvas.width + pad || sy < -pad || sy > canvas.height + pad) return;
+
+  ctx.save();
+  ctx.translate(sx, sy);
+
+  // Hit flash overlay
+  if (tank.hitFlash > 0) {
+    ctx.shadowColor  = "#ff4040";
+    ctx.shadowBlur   = 22;
+  }
+
+  // ── Hull ──────────────────────────────────────────────────────────────────
+  ctx.rotate(tank.angle + Math.PI / 2);
+  const hw = tank.w / 2, hh = tank.h / 2;
+
+  // Shadow
+  ctx.fillStyle = "rgba(0,0,0,0.3)";
+  ctx.fillRect(-hw + 4, -hh + 4, tank.w, tank.h);
+
+  // Main hull
+  ctx.fillStyle = isPlayer ? (tank.hitFlash > 0 ? "#ff8040" : hullColor) : (tank.hitFlash > 0 ? "#ff6040" : hullColor);
+  ctx.fillRect(-hw, -hh, tank.w, tank.h);
+
+  // Side skirts
+  ctx.fillStyle = isPlayer ? "#3a5020" : "#4a3020";
+  ctx.fillRect(-hw - 4, -hh + 4, 5, tank.h - 8);
+  ctx.fillRect( hw - 1, -hh + 4, 5, tank.h - 8);
+
+  // Hull detail lines
+  ctx.strokeStyle = "rgba(0,0,0,0.5)";
+  ctx.lineWidth   = 1.5;
+  ctx.strokeRect(-hw, -hh, tank.w, tank.h);
+  ctx.beginPath();
+  ctx.moveTo(-hw + 4, -hh + 10); ctx.lineTo(hw - 4, -hh + 10);
+  ctx.moveTo(-hw + 4, -hh + 20); ctx.lineTo(hw - 4, -hh + 20);
+  ctx.stroke();
+
+  ctx.rotate(-(tank.angle + Math.PI / 2));   // undo hull rotation
+
+  // ── Turret ────────────────────────────────────────────────────────────────
+  ctx.rotate(tank.turretAngle + Math.PI / 2);
+
+  ctx.fillStyle = turretColor;
+  ctx.beginPath();
+  ctx.arc(0, 0, 13, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = "rgba(0,0,0,0.6)";
+  ctx.lineWidth   = 1.5;
+  ctx.stroke();
+
+  // Barrel
+  ctx.fillStyle = isPlayer ? "#2a3018" : "#1a1a2a";
+  ctx.fillRect(-4, -30, 8, 30);
+  ctx.strokeStyle = "rgba(0,0,0,0.7)";
+  ctx.lineWidth   = 1;
+  ctx.strokeRect(-4, -30, 8, 30);
+
+  ctx.rotate(-(tank.turretAngle + Math.PI / 2));
+
+  ctx.shadowBlur = 0;
+  ctx.restore();
+
+  // ── HP bar ────────────────────────────────────────────────────────────────
+  if (!isPlayer) {
+    const bw = tank.w + 10;
+    const bx = sx - bw / 2;
+    const by = sy - tank.h / 2 - 14;
+    ctx.fillStyle = "#1a1a1a";
+    ctx.fillRect(bx, by, bw, 5);
+    const hpPct = tank.hp / tank.maxHp;
+    ctx.fillStyle = hpPct > 0.5 ? "#39ff14" : hpPct > 0.25 ? "orange" : "#ff3c38";
+    ctx.fillRect(bx, by, bw * hpPct, 5);
+    ctx.strokeStyle = "#000";
+    ctx.lineWidth   = 0.8;
+    ctx.strokeRect(bx, by, bw, 5);
+  }
+}
+
+/**
+ * drawShells – Renders all active shells with glowing trail.
+ */
+function drawShells() {
+  const drawShellSet = (shells, color, glowColor) => {
+    for (const s of shells) {
+      if (!s.alive) continue;
+
+      // Trail
+      for (let i = 0; i < s.trail.length; i++) {
+        const t  = s.trail[i];
+        const a  = (i / s.trail.length) * 0.5;
+        const r2 = s.r * (i / s.trail.length);
+        ctx.beginPath();
+        ctx.arc(t.x + CAM.x, t.y + CAM.y, r2, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${glowColor},${a})`;
+        ctx.fill();
+      }
+
+      // Shell body
+      ctx.save();
+      ctx.shadowColor = `rgba(${glowColor},0.9)`;
+      ctx.shadowBlur  = 12;
+      ctx.beginPath();
+      ctx.arc(s.x + CAM.x, s.y + CAM.y, s.r, 0, Math.PI * 2);
+      ctx.fillStyle = color;
+      ctx.fill();
+      ctx.restore();
+    }
+  };
+
+  drawShellSet(pShells, "#ffe060", "240,220,80");
+  drawShellSet(eShells, "#ff6040", "255,120,80");
+}
+
+/**
+ * drawParticles – Renders all living particles.
+ */
+function drawParticles() {
+  for (const p of particles) {
+    ctx.save();
+    ctx.globalAlpha = p.alpha;
+    ctx.beginPath();
+    ctx.arc(p.x + CAM.x, p.y + CAM.y, p.r, 0, Math.PI * 2);
+    ctx.fillStyle = p.color;
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+/**
+ * drawMinimap – Renders the minimap canvas with terrain and tank positions.
+ * Called every frame.
+ */
+function drawMinimap() {
+  const mw = mmCanvas.width;
+  const mh = mmCanvas.height;
+  const scx = mw / CFG.WORLD_W;
+  const scy = mh / CFG.WORLD_H;
+
+  mmCtx.fillStyle = "#1a2010";
+  mmCtx.fillRect(0, 0, mw, mh);
+
+  // Obstacles
+  mmCtx.fillStyle = "#5a5a4a";
+  for (const o of obstacles) {
+    mmCtx.fillRect(o.x * scx, o.y * scy, Math.max(2, o.w * scx), Math.max(2, o.h * scy));
+  }
+
+  // Enemies
+  for (const e of enemies) {
+    mmCtx.fillStyle = CFG.ENEMY_TIERS[e.tier].color;
+    mmCtx.fillRect(e.x * scx - 2, e.y * scy - 2, 4, 4);
+  }
+
+  // Player
+  if (player) {
+    mmCtx.fillStyle = "#39ff14";
+    mmCtx.fillRect(player.x * scx - 3, player.y * scy - 3, 6, 6);
+  }
+
+  // View rect
+  mmCtx.strokeStyle = "rgba(255,255,255,0.3)";
+  mmCtx.lineWidth   = 1;
+  mmCtx.strokeRect(
+    (-CAM.x) * scx,
+    (-CAM.y) * scy,
+    canvas.width * scx,
+    canvas.height * scy
+  );
+}
+
+/* ╔══════════════════════════════════════════════════════════════════════════╗
+   ║  18. MAIN GAME LOOP                                                      ║
+   ╚══════════════════════════════════════════════════════════════════════════╝ */
+
+let lastTime    = 0;
+let animFrameId = null;
+
+/**
+ * gameLoop – The main requestAnimationFrame loop.
+ * Computes delta time, then calls all update and draw functions in order.
+ * Runs continuously while the game is active.
+ * @param {number} timestamp  DOMHighResTimeStamp from rAF
+ */
+function gameLoop(timestamp) {
+  animFrameId = requestAnimationFrame(gameLoop);
+
+  const dt = Math.min((timestamp - lastTime) / 1000, 0.05);  // cap at 50ms
+  lastTime  = timestamp;
+
+  if (!STATE.running || STATE.paused) {
+    // Still draw the scene while paused
+    renderFrame();
+    return;
+  }
+
+  STATE.elapsed += dt;
+  updateTimeHUD();
+
+  // Update everything
+  updatePlayer(dt);
+  for (const e of enemies) updateEnemy(e, dt);
+  enemies = enemies.filter(e => e.hp > 0);
+
+  updateShells(dt);
+  updateParticles(dt);
+  updateWaveSystem(dt);
+
+  // Crosshair position
+  const ch = document.getElementById("crosshair");
+  ch.style.left = INPUT.mouseX + "px";
+  ch.style.top  = INPUT.mouseY + "px";
+
+  renderFrame();
+}
+
+/**
+ * renderFrame – Clears the canvas and draws the full scene.
+ * Called every frame by the game loop.
+ */
+function renderFrame() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  drawWorld();
+  drawObstacles();
+
+  // Tread trails
+  if (player) drawTrail(player);
+  for (const e of enemies) drawTrail(e);
+
+  // Shells (behind tanks)
+  drawShells();
+
+  // Tanks
+  for (const e of enemies) {
+    drawTank(e, e.color, "#3a3a60", false);
+  }
+  if (player) {
+    drawTank(player, "#4a6a30", "#5a8040", true);
+  }
+
+  drawParticles();
+  drawMinimap();
+}
+
+/* ╔══════════════════════════════════════════════════════════════════════════╗
+   ║  19. HUD UPDATES                                                         ║
+   ╚══════════════════════════════════════════════════════════════════════════╝ */
+
+/** updateScoreHUD – Refreshes the score display. */
+function updateScoreHUD() {
+  document.getElementById("scoreVal").textContent = STATE.score.toLocaleString();
+}
+
+/** updateWaveHUD – Refreshes the wave display. */
+function updateWaveHUD() {
+  document.getElementById("waveVal").textContent = STATE.wave;
+}
+
+/** updateEnemyCountHUD – Shows remaining enemies (alive + in queue). */
+function updateEnemyCountHUD() {
+  document.getElementById("enemyVal").textContent = enemies.length + STATE.spawnQueue.length;
+}
+
+/** updateKillsHUD – Updates total kill count. */
+function updateKillsHUD() {
+  document.getElementById("killsVal").textContent = STATE.kills;
+}
+
+/** updateTimeHUD – Converts elapsed seconds to MM:SS and updates display. */
+function updateTimeHUD() {
+  const m = Math.floor(STATE.elapsed / 60);
+  const s = Math.floor(STATE.elapsed % 60);
+  document.getElementById("timeVal").textContent = `${m}:${s.toString().padStart(2,"0")}`;
+}
+
+/**
+ * addKillFeedEntry – Appends a timed entry to the kill feed panel.
+ * @param {string} text
+ */
+function addKillFeedEntry(text) {
+  const feed = document.getElementById("killFeed");
+  const el   = document.createElement("div");
+  el.className = "kill-entry";
+  el.textContent = text;
+  feed.appendChild(el);
+  setTimeout(() => el.remove(), 3200);
+}
+
+/**
+ * showWaveAnnounce – Shows a big "WAVE N" overlay for 2 seconds.
+ * @param {number} n  Wave number
+ */
+function showWaveAnnounce(n) {
+  const el = document.getElementById("waveAnnounce");
+  el.textContent = `⚙ WAVE ${n}`;
+  el.classList.add("show");
+  setTimeout(() => el.classList.remove("show"), 2000);
+}
+
+/* ╔══════════════════════════════════════════════════════════════════════════╗
+   ║  20. GAME START / END                                                    ║
+   ╚══════════════════════════════════════════════════════════════════════════╝ */
+
+/**
+ * startGame – Initialises all game state and begins the main loop.
+ * Called when the user picks a difficulty on the menu screen.
+ * @param {string} difficulty  "easy" | "normal" | "hard"
+ */
+function startGame(difficulty) {
+  STATE.running    = false;
+  STATE.paused     = false;
+  STATE.score      = 0;
+  STATE.kills      = 0;
+  STATE.elapsed    = 0;
+  STATE.wave       = 0;
+  STATE.waveComplete = false;
+  STATE.difficulty = difficulty;
+  STATE.diffCfg    = CFG.DIFFICULTIES[difficulty];
+
+  // Reset collections
+  enemies   = [];
+  pShells   = [];
+  eShells   = [];
+  particles = [];
+  pickups   = [];
+
+  player = createPlayer();
+  generateObstacles();
+
+  CAM.x = canvas.width  / 2 - player.x;
+  CAM.y = canvas.height / 2 - player.y;
+
+  document.getElementById("menuScreen").classList.add("hidden");
+  document.getElementById("endScreen").classList.add("hidden");
+  document.getElementById("hud").classList.remove("hidden");
+  document.getElementById("pauseOverlay").classList.add("hidden");
+
+  updateScoreHUD();
+  updateKillsHUD();
+  updateEnemyCountHUD();
+  updateTimeHUD();
+
+  STATE.running = true;
+  startWave(1);
+
+  if (animFrameId) cancelAnimationFrame(animFrameId);
+  lastTime = performance.now();
+  animFrameId = requestAnimationFrame(gameLoop);
+}
+
+/**
+ * endGame – Transitions to the end screen with result and stats.
+ * Called when player hp reaches 0 (defeat) or... future victory condition.
+ * @param {boolean} victory  True for victory, false for defeat
+ */
+function endGame(victory) {
+  STATE.running = false;
+
+  const title = document.getElementById("endTitle");
+  title.textContent = victory ? "VICTORY!" : "TANK DESTROYED";
+  title.className   = "end-title " + (victory ? "victory" : "defeat");
+
+  const m = Math.floor(STATE.elapsed / 60);
+  const s = Math.floor(STATE.elapsed % 60);
+  document.getElementById("endStats").innerHTML =
+    `<strong>Score:</strong> ${STATE.score.toLocaleString()}<br>` +
+    `<strong>Wave reached:</strong> ${STATE.wave}<br>` +
+    `<strong>Kills:</strong> ${STATE.kills}<br>` +
+    `<strong>Survived:</strong> ${m}m ${s}s<br>` +
+    `<strong>Difficulty:</strong> ${STATE.difficulty.toUpperCase()}`;
+
+  document.getElementById("hud").classList.add("hidden");
+  document.getElementById("endScreen").classList.remove("hidden");
+}
+
+/**
+ * togglePause – Pauses or unpauses the game.
+ * Triggered by P key or Escape.
+ */
+function togglePause() {
+  if (!STATE.running) return;
+  STATE.paused = !STATE.paused;
+  document.getElementById("pauseOverlay").classList.toggle("hidden", !STATE.paused);
+}
+
+/* ╔══════════════════════════════════════════════════════════════════════════╗
+   ║  21. INPUT HANDLERS                                                      ║
+   ╚══════════════════════════════════════════════════════════════════════════╝ */
+
+/**
+ * onKeyDown – Records key press and handles discrete actions (pause).
+ * @param {KeyboardEvent} e
+ */
+function onKeyDown(e) {
+  INPUT.keys[e.code] = true;
+  if (e.code === "KeyP" || e.code === "Escape") {
+    e.preventDefault();
+    togglePause();
+  }
+  if (e.code === "Space") e.preventDefault();
+}
+
+/**
+ * onKeyUp – Clears key state when released.
+ * @param {KeyboardEvent} e
+ */
+function onKeyUp(e) {
+  INPUT.keys[e.code] = false;
+}
+
+/**
+ * onMouseMove – Updates mouse position in canvas and world coordinates.
+ * Drives player turret aiming.
+ * @param {MouseEvent} e
+ */
+function onMouseMove(e) {
+  INPUT.mouseX = e.clientX;
+  INPUT.mouseY = e.clientY;
+  INPUT.worldX = e.clientX - CAM.x;
+  INPUT.worldY = e.clientY - CAM.y;
+}
+
+/**
+ * onMouseDown – Records fire input on left-click (button 0).
+ * Sets fireEdge for single-shot detection.
+ * @param {MouseEvent} e
+ */
+function onMouseDown(e) {
+  if (e.button === 0) {
+    INPUT.fire     = true;
+    INPUT.fireEdge = true;
+  }
+}
+
+/**
+ * onMouseUp – Clears fire state on mouse release.
+ * @param {MouseEvent} e
+ */
+function onMouseUp(e) {
+  if (e.button === 0) INPUT.fire = false;
+}
+
+/**
+ * onContextMenu – Prevents right-click menu during gameplay.
+ * @param {Event} e
+ */
+function onContextMenu(e) { e.preventDefault(); }
+
+// Attach input listeners
+window.addEventListener("keydown",     onKeyDown);
+window.addEventListener("keyup",       onKeyUp);
+canvas.addEventListener("mousemove",   onMouseMove);
+canvas.addEventListener("mousedown",   onMouseDown);
+canvas.addEventListener("mouseup",     onMouseUp);
+canvas.addEventListener("contextmenu", onContextMenu);
+
+// Prevent spacebar page-scroll
+window.addEventListener("keydown", e => {
+  if (["Space","ArrowUp","ArrowDown"].includes(e.code)) e.preventDefault();
+}, { passive: false });
+
+/* ╔══════════════════════════════════════════════════════════════════════════╗
+   ║  22. UI BUTTON BINDINGS                                                  ║
+   ╚══════════════════════════════════════════════════════════════════════════╝ */
+
+document.getElementById("btnEasy").addEventListener("click",    () => startGame("easy"));
+document.getElementById("btnNormal").addEventListener("click",  () => startGame("normal"));
+document.getElementById("btnHard").addEventListener("click",    () => startGame("hard"));
+document.getElementById("btnRestart").addEventListener("click", () => startGame(STATE.difficulty));
+document.getElementById("btnMenu").addEventListener("click",    () => {
+  STATE.running = false;
+  document.getElementById("endScreen").classList.add("hidden");
+  document.getElementById("hud").classList.add("hidden");
+  document.getElementById("menuScreen").classList.remove("hidden");
+});
+
+/* ╔══════════════════════════════════════════════════════════════════════════╗
+   ║  23. INITIAL RENDER (menu background)                                    ║
+   ╚══════════════════════════════════════════════════════════════════════════╝ */
+
+/**
+ * renderMenuBackground – Draws an animated scene in the canvas behind the
+ * menu screen so the background isn't blank.
+ * Loops indefinitely until a game starts.
+ */
+function renderMenuBackground() {
+  if (STATE.running) return;
+  requestAnimationFrame(renderMenuBackground);
+
+  ctx.fillStyle = "#1a1e28";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Subtle moving dots
+  const t = performance.now() / 1000;
+  ctx.fillStyle = "rgba(60,80,50,0.4)";
+  for (let i = 0; i < 40; i++) {
+    const x = ((i * 137.5 + t * 12) % canvas.width);
+    const y = ((i * 89.3  + t * 7)  % canvas.height);
+    ctx.beginPath();
+    ctx.arc(x, y, 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+requestAnimationFrame(renderMenuBackground);
+
+</script>
+</body>
+</html>
